@@ -1,0 +1,79 @@
+services:
+  odoo-postgres:
+    image: postgres:16.9
+    container_name: odoo-postgres
+    environment:
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD}"
+    volumes:
+      - odoo-postgres-data:/var/lib/postgresql/data
+      - ${POSTGRES_INIT_SQL}:/docker-entrypoint-initdb.d/init-user.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - odoo-net
+
+  odoo-pgadmin:
+    image: dpage/pgadmin4:9.5.0
+    container_name: odoo-pgadmin-9-5
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "${PGADMIN_EMAIL}"
+      PGADMIN_DEFAULT_PASSWORD: "${PGADMIN_PASSWORD}"
+    volumes:
+      - odoo-pgadmin4-data:/var/lib/pgadmin
+      - ${PGADMIN_SERVERS}:/pgadmin4/servers.json:ro
+    ports:
+      - "8080:80"
+    networks:
+      - odoo-net
+
+  odoo-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: odoo-app
+    environment:
+      DB_HOST: "odoo-postgres"
+      DB_USER: "${ODOO_DB_USER}"
+      DB_PASSWORD: "${ODOO_DB_PASSWORD}"
+      DB_NAME: "${ODOO_DB_NAME}"
+      PYDEVD_DISABLE_FILE_VALIDATION: 1
+    volumes:
+      - odoo-data:/var/lib/odoo
+      - "${ODOO_PATH}:/mnt/odoo"
+      - "${BIOSSMANN_ADDONS_PATH}:/mnt/odoo/biossmann_addons"
+    ports:
+      - "8069:8069"
+      - "5678:5678"
+    networks:
+      - odoo-net
+    depends_on:
+      - odoo-postgres
+    command: >
+      python3 -m debugpy --listen 0.0.0.0:5678 --wait-for-client --log-to-stderr
+      /mnt/odoo/odoo-bin -c /mnt/odoo/debian/odoo.conf ${ODOO_MODULES_TO_UPDATE:+-u $ODOO_MODULES_TO_UPDATE} --log-level=debug
+
+  # odoo-app-init:
+  #   image: odoo:18.0
+  #   container_name: odoo-app-init
+  #   environment:
+  #     HOST: "odoo-postgres"
+  #     USER: "${ODOO_DB_USER}"
+  #     PASSWORD: "${ODOO_DB_PASSWORD}"
+  #     DB_NAME: "odoocom"
+  #   volumes:
+  #     - odoo-data:/var/lib/odoo
+  #   ports:
+  #     - "8069:8069"
+  #   networks:
+  #     - odoo-net
+  #   depends_on:
+  #     - odoo-postgres
+
+
+volumes:
+  odoo-postgres-data:
+  odoo-pgadmin4-data:
+  odoo-data:
+
+networks:
+  odoo-net:
